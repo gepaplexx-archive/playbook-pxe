@@ -1,0 +1,235 @@
+---
+- name: Create ignition files with openshift-install
+  hosts: bastion
+  tags:
+    - openshift
+    - pxe.ignitions
+  tasks:
+
+    - name: "Create {{ openshift_install_dir }}"
+      ansible.builtin.file:
+        path: "{{ openshift_install_dir }}"
+        state: directory
+      tags:
+        - openshift
+        - openshift.openshift_install_dir
+
+    - name: "Generate ssh key for {{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}"
+      ansible.builtin.command: 
+        cmd: ssh-keygen -q -t rsa -f {{ openshift_install_config_ssh_file_name }} -C "core@{{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}" -N "" -b 4096
+        chdir: "{{ openshift_install_dir }}"
+        creates: "{{ openshift_install_config_ssh_file_name }}"
+      tags:
+        - openshift
+        - openshift.ssh
+
+    - name: "Get Public Key for {{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}"
+      ansible.builtin.slurp:
+        src: "{{ openshift_install_dir }}/{{ openshift_install_config_ssh_file_name }}.pub"
+      register: public_key
+      tags:
+        - openshift
+        - openshift.ssh
+
+    - name: Check if pull_secret.json is present
+      ansible.builtin.file:
+        path: "{{ openshift_install_dir }}/pull_secret.json"
+        state: file
+      tags:
+        - openshift
+        - openshift.pull_secret
+
+    - name: Get Pull Secret
+      ansible.builtin.slurp:
+        src: "{{ openshift_install_dir }}/pull_secret.json"
+      register: pull_secret
+      tags:
+        - openshift
+        - openshift.pull_secret
+
+    - name: "Create {{ openshift_install_config_dir }}"
+      ansible.builtin.file:
+        path: "{{ openshift_install_config_dir }}"
+        state: directory
+      tags:
+        - openshift
+        - openshift.openshift_install_config_dir
+
+    - name: Check if install-config.yaml is already present
+      ansible.builtin.file:
+        path: "{{ openshift_install_config_dir }}.bak/install-config.yaml"
+        state: file
+      register: openshift_openshift_install_config_present
+      failed_when: false
+      check_mode: yes
+      tags:
+        - openshift
+        - openshift.openshift_install_config
+
+    - name: Check if install-config.yaml will change
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ openshift_install_config_dir }}.bak/install-config.yaml"
+      check_mode: yes
+      register: openshift_openshift_install_config_results
+      tags:
+        - openshift
+        - openshift.openshift_install_config
+
+    # Do never overwrite install_config. On reinstallation, delete this folder first.
+    - name: Fail on overwrite of install-config
+      when: openshift_openshift_install_config_present.state == 'file' and openshift_openshift_install_config_results.changed
+      fail:
+        msg: "The install-config directory is immutable. Please delete directory manually, to confirm recreation of install-config."
+
+    - name: Template install-config.yaml
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ openshift_install_config_dir }}/install-config.yaml"
+      when: openshift_openshift_install_config_results.changed
+      tags:
+        - openshift
+        - openshift.openshift_install_config
+
+    - name: Backup install-config dir
+      ansible.builtin.copy:
+        src: "{{ openshift_install_config_dir }}/"
+        dest: "{{ openshift_install_config_dir }}.bak/"
+        remote_src: yes
+      when: openshift_openshift_install_config_results.changed
+      tags:
+        - openshift
+        - openshift.openshift_install_config
+
+    - name: Get checksum for local openshift-install-linux.tar.gz
+      ansible.builtin.stat:
+        path: "{{ openshift_install_dir }}/openshift-install-linux.tar.gz"
+        checksum_algorithm: sha256
+        get_checksum: yes
+      register: openshift_local_tar_results
+      tags:
+        - openshift
+        - openshift.installer
+
+    - name: Download checksum for the latest openshift-install-linux.tar.gz
+      ansible.builtin.get_url:
+        url: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/sha256sum.txt
+        dest: "{{ openshift_install_dir }}/sha256sum.txt"
+      tags:
+        - openshift
+        - openshift.installer
+
+    - name: Get checksum for the latest openshift-install-linux.tar.gz 
+      ansible.builtin.slurp:
+        src: "{{ openshift_install_dir }}/sha256sum.txt"
+      register: openshift_openshift_install_checksum_results
+      tags:
+        - openshift
+        - openshift.installer
+
+    - name: Download openshift-install-linux.tar.gz
+      ansible.builtin.get_url:
+        url: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-install-linux.tar.gz
+        dest: "{{ openshift_install_dir }}/openshift-install-linux.tar.gz"
+      register: openshift_openshift_install_download_results
+      when:
+        - not openshift_local_tar_results.stat.exists or
+          (openshift_local_tar_results.stat.checksum is defined and 
+          openshift_local_tar_results.stat.checksum not in openshift_openshift_install_checksum_results.content | b64decode)
+      tags:
+        - openshift
+        - openshift.installer
+
+    - name: Extract openshift-install-linux.tar.gz
+      ansible.builtin.unarchive:
+        src: "{{ openshift_install_dir }}/openshift-install-linux.tar.gz"
+        dest: "{{ openshift_install_dir }}/"
+        remote_src: yes
+      when: openshift_openshift_install_download_results.changed
+      tags:
+        - openshift
+        - openshift.installer
+
+    - name: Create openshift-install manifests
+      ansible.builtin.command: 
+        cmd: "./openshift-install create manifests --dir={{ openshift_install_config_dir }}/"
+        chdir: "{{ openshift_install_dir }}"
+        creates: "{{ openshift_install_config_dir }}/auth"
+      register: openshift_manifest_results
+      tags:
+        - openshift
+        - openshift.manifests
+
+    - name: Ensure mastersSchedulable is false
+      ansible.builtin.lineinfile:
+        path: "{{ openshift_install_config_dir }}/manifests/cluster-scheduler-02-config.yml"
+        regexp: 'mastersSchedulable'
+        line: '  mastersSchedulable: false'
+      when: openshift_manifest_results.changed
+      tags:
+        - openshift
+        - openshift.manifests
+
+    - name: Create openshift-install ignition-configs
+      ansible.builtin.command: 
+        cmd: "./openshift-install create ignition-configs --dir={{ openshift_install_config_dir }}/"
+        chdir: "{{ openshift_install_dir }}"
+        creates: "{{ openshift_install_config_dir }}/worker.ign"
+      tags:
+        - openshift
+        - openshift.ignitions
+
+    - name: Register ignition files for PXE provisioning
+      ansible.builtin.slurp:
+        src: "{{ openshift_install_config_dir }}/{{ item }}"
+      with_items:
+        - bootstrap.ign
+        - master.ign
+        - worker.ign
+      register: openshift_ignition_files_results
+      tags:
+        - openshift
+        - openshift.ignitions
+        - pxe
+        - pxe.ignitions
+
+- name: Provision PXE server
+  hosts: pxe
+  become: yes
+  tags:
+    - pxe
+  tasks:
+
+    - name: Include gepaplexx.nginx
+      include_role:
+        name: gepaplexx.nginx
+      tags:
+        - pxe
+        - pxe.nginx
+
+    - name: Include gepaplexx.tftp
+      include_role:
+        name: gepaplexx.tftp
+      tags:
+        - pxe
+        - pxe.tftp
+
+    - name: Include gepaplexx.pxe
+      include_role:
+        name: gepaplexx.pxe
+      tags:
+        - pxe
+        - pxe.pxe
+
+    - name: "add ignition files to {{ nginx_pxe_directory }}"
+      ansible.builtin.copy:
+        dest: "{{ nginx_pxe_directory }}/{{ item.source | basename }}"
+        content: "{{ item.content | b64decode }}"
+        mode: 0644
+      with_items: "{{ hostvars['bastion.central.gepaplexx.local']['openshift_ignition_files_results']['results'] }}"
+      loop_control:
+        label: "{{ item.source | basename }}"
+      tags:
+        - pxe
+        - pxe.ignitions
+...

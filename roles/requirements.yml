@@ -1,0 +1,6 @@
+---
+roles:
+  - name: gepaplexx.nginx
+  - name: gepaplexx.pxe
+  - name: gepaplexx.tftp
+...
