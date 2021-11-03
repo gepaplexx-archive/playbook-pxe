@@ -20,5 +20,5 @@ networking:
 platform:
   none: {}
 fips: false
-pullSecret: {{ ocp_pull_secret | trim | quote }}
+pullSecret: {{ ocp_pull_secret | b64decode | trim | quote }}
 sshKey: {{ public_key['content'] | b64decode | trim | quote }}
