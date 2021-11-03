@@ -33,22 +33,6 @@
         - openshift
         - openshift.ssh
 
-    - name: Check if pull_secret.json is present
-      ansible.builtin.file:
-        path: "{{ openshift_install_dir }}/pull_secret.json"
-        state: file
-      tags:
-        - openshift
-        - openshift.pull_secret
-
-    - name: Get Pull Secret
-      ansible.builtin.slurp:
-        src: "{{ openshift_install_dir }}/pull_secret.json"
-      register: pull_secret
-      tags:
-        - openshift
-        - openshift.pull_secret
-
     - name: "Create {{ openshift_install_dir }}/config"
       ansible.builtin.file:
         path: "{{ openshift_install_dir }}/config"
