@@ -181,14 +181,6 @@
         - pxe
         - pxe.ignitions
 
-- name: Provision PXE server
-  hosts:
-    - all
-  become: yes
-  tags:
-    - pxe
-  tasks:
-
     - name: Include gepaplexx.pxe
       include_role:
         name: gepaplexx.pxe
@@ -201,7 +193,7 @@
         dest: "{{ nginx_pxe_directory }}/{{ item.source | basename }}"
         content: "{{ item.content | b64decode }}"
         mode: 0644
-      with_items: "{{ hostvars['bastion.central.gepaplexx.local']['openshift_ignition_files_results']['results'] }}"
+      with_items: "{{ openshift_ignition_files_results['results'] }}"
       loop_control:
         label: "{{ item.source | basename }}"
       tags:
