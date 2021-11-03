@@ -11,6 +11,7 @@
       ansible.builtin.file:
         path: "{{ openshift_install_dir }}"
         state: directory
+        chmod: 0755
       tags:
         - openshift
         - openshift.openshift_install_dir
@@ -51,6 +52,7 @@
     - name: "Create {{ openshift_install_dir }}/config"
       ansible.builtin.file:
         path: "{{ openshift_install_dir }}/config"
+        chmod: 0755
         state: directory
       tags:
         - openshift
@@ -97,6 +99,7 @@
         src: "{{ openshift_install_dir }}/config/"
         dest: "{{ openshift_install_dir }}/config.bak/"
         remote_src: yes
+        chmod: 0755
       when: openshift_openshift_install_config_results.changed
       tags:
         - openshift
