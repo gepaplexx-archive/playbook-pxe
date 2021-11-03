@@ -12,11 +12,11 @@ metadata:
   name: {{ ocp_name }}
 networking:
   clusterNetwork:
-  - cidr: {{ spoke_network }}.0/{{ spoke_netmask_slash }}
+  - cidr: {{ spoke_cluster_network }}
     hostPrefix: {{ spoke_host_prefix }}
   networkType: OpenShiftSDN
   serviceNetwork:
-  - {{ spoke_service_network }}
+  - {{ spoke_network }}.0/{{ spoke_netmask_slash }}
 platform:
   none: {}
 fips: false
