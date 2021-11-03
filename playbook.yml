@@ -101,7 +101,7 @@
 
     - name: Download checksum for the latest openshift-install-linux.tar.gz
       ansible.builtin.get_url:
-        url: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/sha256sum.txt
+        url: "{{ openshift_clients_url }}/sha256sum.txt"
         dest: "{{ openshift_install_dir }}/sha256sum.txt"
       tags:
         - openshift
@@ -117,7 +117,7 @@
 
     - name: Download openshift-install-linux.tar.gz
       ansible.builtin.get_url:
-        url: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-install-linux.tar.gz
+        url: "{{ openshift_clients_url }}/openshift-install-linux.tar.gz"
         dest: "{{ openshift_install_dir }}/openshift-install-linux.tar.gz"
       register: openshift_openshift_install_download_results
       when:
