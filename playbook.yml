@@ -17,7 +17,7 @@
         - openshift.openshift_install_dir
 
     - name: "Generate ssh key for {{ ocp_name }}.{{ ocp_domain }}"
-      ansible.builtin.command: 
+      ansible.builtin.command:
         cmd: ssh-keygen -q -t rsa -f id_rsa -C "core@{{ ocp_name }}.{{ ocp_domain }}" -N "" -b 4096
         chdir: "{{ openshift_install_dir }}"
         creates: id_rsa
