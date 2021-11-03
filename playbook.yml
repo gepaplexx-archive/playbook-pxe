@@ -1,6 +1,7 @@
 ---
 - name: Create ignition files with openshift-install
-  hosts: bastion
+  hosts:
+    - all
   tags:
     - openshift
     - pxe.ignitions
@@ -14,18 +15,18 @@
         - openshift
         - openshift.openshift_install_dir
 
-    - name: "Generate ssh key for {{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}"
+    - name: "Generate ssh key for {{ ocp_name }}.{{ ocp_domain }}"
       ansible.builtin.command: 
-        cmd: ssh-keygen -q -t rsa -f {{ openshift_install_config_ssh_file_name }} -C "core@{{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}" -N "" -b 4096
+        cmd: ssh-keygen -q -t rsa -f id_rsa -C "core@{{ ocp_name }}.{{ ocp_domain }}" -N "" -b 4096
         chdir: "{{ openshift_install_dir }}"
-        creates: "{{ openshift_install_config_ssh_file_name }}"
+        creates: id_rsa
       tags:
         - openshift
         - openshift.ssh
 
-    - name: "Get Public Key for {{ openshift_install_config_metadata_name }}.{{ openshift_install_config_basedomain }}"
+    - name: "Get Public Key for {{ ocp_name }}.{{ ocp_domain }}"
       ansible.builtin.slurp:
-        src: "{{ openshift_install_dir }}/{{ openshift_install_config_ssh_file_name }}.pub"
+        src: "{{ openshift_install_dir }}/id_rsa.pub"
       register: public_key
       tags:
         - openshift
@@ -47,9 +48,9 @@
         - openshift
         - openshift.pull_secret
 
-    - name: "Create {{ openshift_install_config_dir }}"
+    - name: "Create {{ openshift_install_dir }}/config"
       ansible.builtin.file:
-        path: "{{ openshift_install_config_dir }}"
+        path: "{{ openshift_install_dir }}/config"
         state: directory
       tags:
         - openshift
@@ -57,7 +58,7 @@
 
     - name: Check if install-config.yaml is already present
       ansible.builtin.file:
-        path: "{{ openshift_install_config_dir }}.bak/install-config.yaml"
+        path: "{{ openshift_install_dir }}/config.bak/install-config.yaml"
         state: file
       register: openshift_openshift_install_config_present
       failed_when: false
@@ -69,7 +70,7 @@
     - name: Check if install-config.yaml will change
       ansible.builtin.template:
         src: install-config.yaml.j2
-        dest: "{{ openshift_install_config_dir }}.bak/install-config.yaml"
+        dest: "{{ openshift_install_dir }}/config.bak/install-config.yaml"
       check_mode: yes
       register: openshift_openshift_install_config_results
       tags:
@@ -85,7 +86,7 @@
     - name: Template install-config.yaml
       ansible.builtin.template:
         src: install-config.yaml.j2
-        dest: "{{ openshift_install_config_dir }}/install-config.yaml"
+        dest: "{{ openshift_install_dir }}/config/install-config.yaml"
       when: openshift_openshift_install_config_results.changed
       tags:
         - openshift
@@ -93,8 +94,8 @@
 
     - name: Backup install-config dir
       ansible.builtin.copy:
-        src: "{{ openshift_install_config_dir }}/"
-        dest: "{{ openshift_install_config_dir }}.bak/"
+        src: "{{ openshift_install_dir }}/config/"
+        dest: "{{ openshift_install_dir }}/config.bak/"
         remote_src: yes
       when: openshift_openshift_install_config_results.changed
       tags:
@@ -152,9 +153,9 @@
 
     - name: Create openshift-install manifests
       ansible.builtin.command: 
-        cmd: "./openshift-install create manifests --dir={{ openshift_install_config_dir }}/"
+        cmd: "./openshift-install create manifests --dir={{ openshift_install_dir }}/config/"
         chdir: "{{ openshift_install_dir }}"
-        creates: "{{ openshift_install_config_dir }}/auth"
+        creates: "{{ openshift_install_dir }}/config/auth"
       register: openshift_manifest_results
       tags:
         - openshift
@@ -162,7 +163,7 @@
 
     - name: Ensure mastersSchedulable is false
       ansible.builtin.lineinfile:
-        path: "{{ openshift_install_config_dir }}/manifests/cluster-scheduler-02-config.yml"
+        path: "{{ openshift_install_dir }}/config/manifests/cluster-scheduler-02-config.yml"
         regexp: 'mastersSchedulable'
         line: '  mastersSchedulable: false'
       when: openshift_manifest_results.changed
@@ -172,16 +173,16 @@
 
     - name: Create openshift-install ignition-configs
       ansible.builtin.command: 
-        cmd: "./openshift-install create ignition-configs --dir={{ openshift_install_config_dir }}/"
+        cmd: "./openshift-install create ignition-configs --dir={{ openshift_install_dir }}/config/"
         chdir: "{{ openshift_install_dir }}"
-        creates: "{{ openshift_install_config_dir }}/worker.ign"
+        creates: "{{ openshift_install_dir }}/config/worker.ign"
       tags:
         - openshift
         - openshift.ignitions
 
     - name: Register ignition files for PXE provisioning
       ansible.builtin.slurp:
-        src: "{{ openshift_install_config_dir }}/{{ item }}"
+        src: "{{ openshift_install_dir }}/config/{{ item }}"
       with_items:
         - bootstrap.ign
         - master.ign
@@ -194,25 +195,12 @@
         - pxe.ignitions
 
 - name: Provision PXE server
-  hosts: pxe
+  hosts:
+    - all
   become: yes
   tags:
     - pxe
   tasks:
-
-    - name: Include gepaplexx.nginx
-      include_role:
-        name: gepaplexx.nginx
-      tags:
-        - pxe
-        - pxe.nginx
-
-    - name: Include gepaplexx.tftp
-      include_role:
-        name: gepaplexx.tftp
-      tags:
-        - pxe
-        - pxe.tftp
 
     - name: Include gepaplexx.pxe
       include_role:
