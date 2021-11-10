@@ -147,30 +147,6 @@
       tags:
         - openshift
         - openshift.manifests
-        
-    - name: Adjust readability to auth directory
-      ansible.builtin.file:
-        path: "{{ openshift_install_dir }}/config/auth"
-        mode: 0755
-      tags:
-        - openshift
-        - openshift.manifests
-        
-    - name: Adjust readability to kubeconfig
-      ansible.builtin.file:
-        path: "{{ openshift_install_dir }}/config/auth/kubeconfig"
-        mode: 0644
-      tags:
-        - openshift
-        - openshift.manifests
-        
-    - name: Adjust readability to kubeadmin-password
-      ansible.builtin.file:
-        path: "{{ openshift_install_dir }}/config/auth/kubeadmin-password"
-        mode: 0644
-      tags:
-        - openshift
-        - openshift.manifests
 
     - name: Ensure mastersSchedulable is false
       ansible.builtin.lineinfile:
@@ -223,4 +199,28 @@
       tags:
         - pxe
         - pxe.ignitions
+
+    - name: Adjust readability to auth directory
+      ansible.builtin.file:
+        path: "{{ openshift_install_dir }}/config/auth"
+        mode: 0755
+      tags:
+        - openshift
+        - openshift.manifests
+        
+    - name: Adjust readability to kubeconfig
+      ansible.builtin.file:
+        path: "{{ openshift_install_dir }}/config/auth/kubeconfig"
+        mode: 0644
+      tags:
+        - openshift
+        - openshift.manifests
+        
+    - name: Adjust readability to kubeadmin-password
+      ansible.builtin.file:
+        path: "{{ openshift_install_dir }}/config/auth/kubeadmin-password"
+        mode: 0644
+      tags:
+        - openshift
+        - openshift.manifests
 ...
